@@ -1,51 +1,53 @@
 # shortcut-cli
 
-Convert between **plain-text/JSON "commands" and iOS/macOS Shortcuts** (`.shortcut` files), in both directions — plus pull shortcuts straight from an **iCloud share link**.
+**Convert between plain-text/JSON commands and iOS/macOS Shortcuts (`.shortcut`), in both directions — and generate Shortcuts programmatically without them getting truncated on import.**
+
+**English** · [中文说明](README.zh.md)
 
 - **Command → Shortcut** (`compile`): turn a JSON spec into a real, importable `.shortcut` — **signed by default**.
-- **Shortcut → Command** (`decompile`): dump any `.shortcut` (signed **or** unsigned) back to editable JSON, or a human-readable pseudocode view.
+- **Shortcut → Command** (`decompile`): dump any `.shortcut` (signed **or** unsigned) to editable JSON or readable pseudocode.
 - **iCloud link → Shortcut** (`fetch`): download the `.shortcut` behind an `icloud.com/shortcuts/...` link.
-- **Import** (`import`): hand a `.shortcut` straight to the Shortcuts app's add dialog (auto-signs first).
+- **Import** (`import`): hand a `.shortcut` straight to the Shortcuts app's add dialog.
 
-It also does the boring-but-critical parts: **signing**, **verification**, and — most importantly — it **won't let your generated shortcuts get silently truncated on import** (see [Why it's reliable](#why-its-reliable)).
+macOS-native (signing/decoding); the rest is cross-platform. Bilingual output (English / 中文).
 
-> **Signing is on by default.** Unsigned, hand-built shortcuts are the #1 cause of "my shortcut lost half its actions on import." `compile` signs automatically (pass `--no-sign` to skip).
+---
+
+## Who is this for? (Why this exists)
+
+If you've ever asked **Claude, ChatGPT, or an AI agent to generate an iOS Shortcut** and it **lost half its actions the moment you imported it** — this tool exists because I hit that wall over and over.
+
+The cause isn't the AI and it isn't signing. When a `.shortcut` is built programmatically, the modern Shortcuts importer **silently drops whole control-flow blocks** if `UUID` / `GroupingIdentifier` are placed at an action's top level instead of inside `WFWorkflowActionParameters`. On macOS the actions just vanish; on iOS the shortcut imports but runs wrong.
+
+`shortcut-cli` **fixes that root cause automatically** (canonical normalization) and **signs by default**, so an **AI-generated / auto-generated Shortcut actually imports intact**. It also goes the other way — decompile any shortcut to readable JSON — and can pull shortcuts from iCloud share links.
+
+If a few keywords brought you here — *convert command to Shortcut, generate iOS Shortcut programmatically, Claude/AI/agent create Shortcut, decompile .shortcut, Shortcut import loses actions, sign Shortcut without a developer account* — you're in the right place, and hopefully you'll skip the detours I didn't.
+
+---
 
 ## Platform support
 
-The pure-Python parts run anywhere; anything that touches Apple's signing service or the Apple Encrypted Archive format is **macOS-only** (there is no Windows/Linux equivalent — this is a hard Apple limitation, not a missing feature).
+The pure-Python parts run anywhere; anything touching Apple's signing service or the Apple Encrypted Archive is **macOS-only** (a hard Apple limitation, not a missing feature).
 
 | Command | macOS | Linux / Windows |
 |---|:---:|:---:|
 | `compile` (unsigned, `--no-sign`) | ✅ | ✅ |
 | `compile` (**signed**, default) | ✅ | ❌ needs Apple signing |
-| `decompile` unsigned · `info` unsigned | ✅ | ✅ |
-| `decompile` **signed** files | ✅ | ❌ needs `aea`/`aa` |
+| `decompile` / `info` — unsigned files | ✅ | ✅ |
+| `decompile` — **signed** files | ✅ | ❌ needs `aea`/`aa` |
 | `fetch` (iCloud) | ✅ | ✅ |
 | `sign` · `import` | ✅ | ❌ |
 
-On Linux/Windows the macOS-only commands exit with a clear message instead of crashing.
-
----
-
-## Requirements
-
-- **macOS** (tested on recent versions). All dependencies ship with the OS:
-  - `shortcuts` — Apple's Shortcuts CLI (signing)
-  - `aea` — Apple Encrypted Archive tool (decode signed shortcuts)
-  - `aa` — Apple Archive tool
-  - `openssl`, `python3`
-- Signing uses Apple's **iCloud signing service** — you just need to be **signed into iCloud**. **No paid Apple Developer account required.**
+macOS-only commands exit with a clear message on other platforms instead of crashing.
 
 ## Install
 
-**Option A — prebuilt binary** (no Python needed). Grab `shortcut-cli-macos` / `-linux` / `-windows.exe` from the [Releases](https://github.com/Wuvomi/shortcut-cli/releases) page:
+**Prebuilt binary** (no Python needed) — grab `shortcut-cli-macos` / `-linux` / `-windows.exe` from [Releases](https://github.com/Wuvomi/shortcut-cli/releases):
 ```bash
-chmod +x shortcut-cli-macos
-./shortcut-cli-macos --help
+chmod +x shortcut-cli-macos && ./shortcut-cli-macos --help
 ```
 
-**Option B — from source** (Python 3.8+):
+**From source** (Python 3.8+):
 ```bash
 git clone https://github.com/Wuvomi/shortcut-cli.git
 cd shortcut-cli
@@ -54,7 +56,7 @@ python3 shortcut_cli.py --help
 ln -s "$PWD/shortcut_cli.py" ~/.local/bin/shortcut-cli && chmod +x shortcut_cli.py
 ```
 
----
+Requirements for the macOS-only bits: be **signed into iCloud** (signing uses Apple's iCloud service — **no paid Developer account needed**). Built-in tools used: `shortcuts`, `aea`, `aa`, `openssl`.
 
 ## Usage
 
@@ -63,91 +65,77 @@ ln -s "$PWD/shortcut_cli.py" ~/.local/bin/shortcut-cli && chmod +x shortcut_cli.
 shortcut-cli info MyShortcut.shortcut
 ```
 ```
-名称      : My Shortcut
-已签名    : 是 (AEA1)
-动作数    : 21
-动作分布  : {'setvariable': 5, 'getvalueforkey': 6, 'conditional': 3, ...}
-结构健康  : GroupingId顶层=0(应0) 顶层UUID=0(应0) -> ✅ canonical
+name      : My Shortcut
+signed    : yes (AEA1)
+actions   : 21
+structure : top-level GroupingId=0(0) UUID=0(0) -> OK canonical
 ```
-Works on both signed and unsigned files. The **structure-health** line tells you whether the shortcut is "canonical" (safe to import) or would get truncated.
+The `structure` line tells you whether the shortcut is canonical (safe to import) or would be truncated.
 
 ### `decompile` — Shortcut → Command
 ```bash
-# Lossless, re-compilable JSON
-shortcut-cli decompile MyShortcut.shortcut -o MyShortcut.json
-
-# Human-readable pseudocode (not re-compilable)
-shortcut-cli decompile MyShortcut.shortcut --pretty
-```
-`--pretty` output:
-```
-# My Shortcut  (21 actions, signed)
-  0 comment
-  1 ask
-  2 setvariable VariableName=youtubeURL
-  8 downloadurl HTTPMethod=GET url=https://example.com/config.json
- ...
+shortcut-cli decompile MyShortcut.shortcut -o MyShortcut.json   # re-compilable JSON
+shortcut-cli decompile MyShortcut.shortcut --pretty             # readable pseudocode
 ```
 Handles **signed** shortcuts too (decrypts the Apple Encrypted Archive automatically).
 
 ### `compile` — Command → Shortcut
 ```bash
-# JSON spec -> signed, importable .shortcut  (signing is the default)
-shortcut-cli compile MyShortcut.json --name "My Shortcut"
-
-# skip signing (e.g. on Linux/Windows)
-shortcut-cli compile MyShortcut.json --no-sign
+shortcut-cli compile MyShortcut.json --name "My Shortcut"   # signs by default
+shortcut-cli compile MyShortcut.json --no-sign              # skip signing
 ```
-Produces `MyShortcut.signed.shortcut` (importable without the "untrusted" warning). The compiler **automatically normalizes** the structure so it imports intact (see below).
+Auto-normalizes structure so it imports intact, then signs → `MyShortcut.signed.shortcut`.
 
-The JSON "command" format is just the shortcut's `WFWorkflowActions` array wrapped in an object:
+The command format is the shortcut's `WFWorkflowActions` array wrapped in an object — see [`examples/`](examples/):
 ```json
 {
   "WFWorkflowName": "Hello",
   "WFWorkflowActions": [
-    {
-      "WFWorkflowActionIdentifier": "is.workflow.actions.alert",
-      "WFWorkflowActionParameters": {
-        "WFAlertActionTitle": "Hello",
-        "WFAlertActionMessage": "Made by shortcut-cli"
-      }
-    }
+    { "WFWorkflowActionIdentifier": "is.workflow.actions.alert",
+      "WFWorkflowActionParameters": { "WFAlertActionTitle": "Hello" } }
   ]
 }
 ```
-See [`examples/`](examples/). The easiest way to author a new shortcut is: build a similar one in the Shortcuts app, `decompile` it, tweak the JSON, then `compile --sign`.
+Easiest authoring flow: build a similar shortcut in the app → `decompile` it → tweak the JSON → `compile`.
 
 ### `fetch` — iCloud link → Shortcut
 ```bash
-shortcut-cli fetch https://www.icloud.com/shortcuts/28036b99344148b7b337d30f9821e138
+shortcut-cli fetch https://www.icloud.com/shortcuts/<id>
 ```
-Downloads the `.shortcut` (an **unsigned** workflow — so you can immediately `decompile`, edit, and `compile --sign` it).
+Downloads the `.shortcut` (unsigned — so you can immediately decompile/edit/compile it).
 
 ### `import` — hand it to the Shortcuts app (macOS)
 ```bash
-shortcut-cli import MyShortcut.shortcut
+shortcut-cli import MyShortcut.shortcut   # auto-signs, opens the "Add Shortcut" dialog
 ```
-Auto-signs if needed, then opens the Shortcuts app's **"Add Shortcut"** dialog — one click to add. (Fully silent, zero-click import is not supported by Apple.)
 
 ### `sign` / `verify`
 ```bash
-shortcut-cli sign  MyShortcut.shortcut               # -> MyShortcut.signed.shortcut
-shortcut-cli verify MyShortcut.signed.shortcut       # unpacks and counts actions
+shortcut-cli sign  MyShortcut.shortcut
+shortcut-cli verify MyShortcut.signed.shortcut   # unpacks and counts actions
 ```
 
----
+## Bilingual output
+
+Output follows your locale automatically, or force it:
+```bash
+SHORTCUT_CLI_LANG=zh shortcut-cli info x.shortcut   # 中文
+SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
+```
 
 ## Why it's reliable
 
-When you build `.shortcut` files programmatically, the modern iOS/macOS Shortcuts importer will **silently drop actions** if `UUID` and `GroupingIdentifier` are placed at an action's **top level** instead of inside `WFWorkflowActionParameters`. `GroupingIdentifier` links the start/end of control-flow blocks (menus, `if`, `repeat`); when it's misplaced, the importer can't match the block boundaries and discards the whole block — on macOS you see actions vanish, on iOS the shortcut imports but runs wrong.
-
-`shortcut-cli compile` **always normalizes** these into `WFWorkflowActionParameters`, and `info` will flag any file that isn't canonical. Signing itself (`shortcuts sign`) is lossless — this tool proves it by unpacking signed files and counting actions on a full round-trip.
+`compile` always moves `UUID` and `GroupingIdentifier` into `WFWorkflowActionParameters`, and `info` flags any file that isn't canonical. Signing itself (`shortcuts sign`) is **lossless** — this tool proves it by unpacking signed files and counting actions on a full round-trip (`decompile → compile → sign → verify`, action count preserved).
 
 ## Limitations
 
-- **Signing & signed-file decoding are macOS-only** (see the [Platform support](#platform-support) table). Everything else is cross-platform.
-- `decompile` produces the shortcut's native action JSON — powerful and lossless, but low-level. There's no high-level DSL (yet).
-- `fetch` relies on the current iCloud shortcuts records API shape; if Apple changes it, `fetch` may need an update.
+- Signing & signed-file decoding are **macOS-only** (see table above).
+- `decompile` emits the shortcut's native action JSON — lossless but low-level; there's no high-level DSL yet.
+- `fetch` depends on the current iCloud shortcuts records API shape.
+
+## Keywords
+
+iOS Shortcuts CLI · convert command to Shortcut · generate `.shortcut` programmatically · Claude / ChatGPT / AI / LLM / agent create iOS Shortcut · auto-generate Shortcuts · decompile Shortcut · sign Shortcut without developer account · fix Shortcut import truncation / missing actions · Apple Shortcuts `WFWorkflowActions` · iCloud shortcut download.
 
 ## License
 
