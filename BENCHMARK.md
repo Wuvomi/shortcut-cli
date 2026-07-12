@@ -12,8 +12,8 @@ flowchart LR
     B -->|decompile| C["command JSON<br/>agent-readable"]
     C -->|compile| D[".shortcut"]
     D -->|sign| E[".signed.shortcut"]
-    D -. "deep value == ?" .-> B
-    E -. "decode + deep == ?" .-> B
+    D -. "deep-equal?" .-> B
+    E -. "decode, then equal?" .-> B
 ```
 
 Every arrow is run repeatedly; the dotted arrows are the checks. **Correctness is judged by deep value comparison** (does every field/action match by value) — *not* by byte or text equality. Byte equality is the wrong test here: a binary plist normalizes key order, and Apple's signature embeds a fresh timestamp, so two correct files are never byte-identical.
