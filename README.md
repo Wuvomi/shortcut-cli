@@ -1,8 +1,16 @@
 # shortcut-cli
 
-**Convert between plain-text/JSON commands and iOS/macOS Shortcuts (`.shortcut`), in both directions — and generate Shortcuts programmatically without them getting truncated on import.**
+> **Lossless, verifiable** conversion between agent-readable commands (JSON) and iOS/macOS Shortcuts (`.shortcut`) — both directions.
+
+![round-trip: lossless](https://img.shields.io/badge/round--trip-lossless-2ea44f)
+![actions preserved: 100%](https://img.shields.io/badge/actions%20preserved-100%25-2ea44f)
+[![benchmark: verified](https://img.shields.io/badge/benchmark-verified-1f6feb)](BENCHMARK.md)
+![platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
+![license: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 **English** · [中文说明](README.zh.md)
+
+Turn a Shortcut into JSON, edit it (or have an AI edit it), and turn it back — **without losing a single action**. Not just "conversion": a proven **lossless** round-trip ([see the benchmark](BENCHMARK.md)).
 
 - **Command → Shortcut** (`compile`): turn a JSON spec into a real, importable `.shortcut` — **signed by default**.
 - **Shortcut → Command** (`decompile`): dump any `.shortcut` (signed **or** unsigned) to editable JSON or readable pseudocode.
@@ -129,7 +137,9 @@ SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
 
 ## Reliability / round-trip fidelity
 
-`decompile` captures the **entire** workflow (every top-level field + all actions; binary payloads like icons are base64-encoded), so `decompile → compile` is **content-lossless**. Verified on a real shortcut:
+**→ Full numbers, diagrams, and a re-runnable script: [BENCHMARK.md](BENCHMARK.md).** Verified lossless on real Shortcuts up to 61 actions with nested `if`/`repeat`.
+
+`decompile` captures the **entire** workflow (every top-level field + all actions; binary payloads like icons are base64-encoded), so `decompile → compile` is **content-lossless**. Verified on real shortcuts:
 
 - **`original == recompiled`** by deep value comparison — **zero content loss** (all actions and workflow fields preserved).
 - **`compile` is deterministic** — same input → byte-identical output.

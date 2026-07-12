@@ -1,8 +1,16 @@
 # shortcut-cli
 
-**命令 与 iOS/macOS 快捷指令(`.shortcut`)之间的双向转换工具——还能程序化/自动生成快捷指令，且导入不会被裁切。**
+> **无损、可复验**的双向转换：agent 可读命令(JSON) 与 iOS/macOS 快捷指令(`.shortcut`)之间互转。
+
+![无损往返](https://img.shields.io/badge/%E5%BE%80%E8%BF%94-%E6%97%A0%E6%8D%9F-2ea44f)
+![动作零丢失](https://img.shields.io/badge/%E5%8A%A8%E4%BD%9C%E4%BF%9D%E7%95%99-100%25-2ea44f)
+[![基准已验证](https://img.shields.io/badge/benchmark-verified-1f6feb)](BENCHMARK.zh.md)
+![平台 macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
+![许可证 MIT](https://img.shields.io/badge/license-MIT-blue)
 
 [English](README.md) · **中文**
+
+把快捷指令转成 JSON，改它（或让 AI 改它），再转回来——**一个动作都不丢**。不是普通"转换"，是经过验证的**无损**往返（[看基准测试](BENCHMARK.zh.md)）。
 
 - **命令 → 快捷指令**(`compile`)：把 JSON 描述编译成可导入的 `.shortcut`，**默认自动签名**。
 - **快捷指令 → 命令**(`decompile`)：把任意 `.shortcut`（已签名或未签名）反编译成可编辑 JSON 或可读伪代码。
@@ -126,6 +134,8 @@ SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
 `compile` 始终把 `UUID`/`GroupingIdentifier` 挪进 `WFWorkflowActionParameters`，`info` 会标出任何非 canonical 的文件。签名本身（`shortcuts sign`）是**无损**的——本工具用完整 round-trip（`decompile → compile → sign → verify`，动作数不变）证明了这点。
 
 ## 可靠性 / 往返保真度
+
+**→ 完整数据、图示、可复跑脚本见 [BENCHMARK.zh.md](BENCHMARK.zh.md)。** 已在最多 61 动作、含嵌套 `if`/`repeat` 的真实快捷指令上验证无损。
 
 `decompile` 捕获**整个** workflow（每个顶层字段 + 全部动作；图标等二进制用 base64 编码），所以 `decompile → compile` 是**内容无损**的。在真实快捷指令上实测：
 
