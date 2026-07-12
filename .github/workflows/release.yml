@@ -1,0 +1,44 @@
+name: Build binaries
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            asset: shortcut-cli-macos
+          - os: ubuntu-latest
+            asset: shortcut-cli-linux
+          - os: windows-latest
+            asset: shortcut-cli-windows.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pyinstaller
+      - name: Build single-file binary
+        run: pyinstaller --onefile shortcut_cli.py -n shortcut-cli
+      - name: Rename asset
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            mv dist/shortcut-cli.exe "dist/${{ matrix.asset }}"
+          else
+            mv dist/shortcut-cli "dist/${{ matrix.asset }}"
+          fi
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.asset }}

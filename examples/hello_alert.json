@@ -1,0 +1,13 @@
+{
+  "WFWorkflowName": "Hello from shortcut-cli",
+  "WFWorkflowActions": [
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.alert",
+      "WFWorkflowActionParameters": {
+        "WFAlertActionTitle": "Hello 👋",
+        "WFAlertActionMessage": "This shortcut was built by shortcut-cli.",
+        "WFAlertActionCancelButtonShown": false
+      }
+    }
+  ]
+}

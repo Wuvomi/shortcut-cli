@@ -1,0 +1,16 @@
+# 内部进度文件（含私有基础设施引用，不公开）
+PROGRESS.md
+
+# 生成产物
+*.shortcut
+*.signed.shortcut
+!examples/*.json
+
+# Python / 打包
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+
+.DS_Store
