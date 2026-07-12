@@ -15,13 +15,13 @@
 
 ## 谁需要它？（为什么做这个）
 
-如果你曾经**让 Claude、ChatGPT 或某个 AI agent 帮你生成一个快捷指令**，结果**一导入就丢了一半动作**——这个工具就是为此而生，因为我在这上面反复栽了跟头。
+如果你曾经**让 Claude、Codex、ChatGPT、Gemini、Copilot、Cursor 或任意 AI 编程 agent 帮你生成一个快捷指令**，结果**一导入就丢了一半动作**——这个工具就是为此而生，因为我在这上面反复栽了跟头。
 
 真凶既不是 AI，也不是签名。当 `.shortcut` 是**程序化生成**的，如果 `UUID` / `GroupingIdentifier` 被放在 action 顶层而不是 `WFWorkflowActionParameters` 里面，**新版导入器会静默丢弃整段控制流块**：在 macOS 上动作直接消失，在 iOS 上能导入但运行错乱。
 
 `shortcut-cli` **自动修复这个根因**（canonical 归一化）并**默认签名**，让**AI 生成 / 自动生成的快捷指令真正能完整导入**。它也能反向工作——把任意快捷指令反编译成可读 JSON——还能从 iCloud 分享链接拉取。
 
-如果你是搜这些关键词找来的——**快捷指令转换、claude 创建快捷指令、快捷指令生成、agent 创建快捷指令、agent 生成快捷指令、自动生成快捷指令、命令转快捷指令、反编译快捷指令、快捷指令导入丢失/裁切、快捷指令签名**——那你来对了，希望你能少走我当初走过的弯路。
+如果你是搜这些关键词找来的——**快捷指令转换、claude 创建快捷指令、codex 创建快捷指令、codex 生成快捷指令、快捷指令生成、agent 创建快捷指令、agent 生成快捷指令、自动生成快捷指令、命令转快捷指令、反编译快捷指令、快捷指令导入丢失/裁切、快捷指令签名**——那你来对了，希望你能少走我当初走过的弯路。
 
 ---
 
@@ -131,7 +131,7 @@ SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
 - `fetch` 依赖当前 iCloud 快捷指令 records API 的结构。
 
 ## 关键词
-快捷指令转换 · claude创建快捷指令 · 快捷指令生成 · agent创建快捷指令 · agent生成快捷指令 · 自动生成快捷指令 · 命令转快捷指令 · 反编译快捷指令 · 快捷指令导入丢失/裁切 · 快捷指令签名（无需开发者账号）· iOS Shortcuts CLI · WFWorkflowActions。
+快捷指令转换 · claude创建快捷指令 · codex创建快捷指令 · codex生成快捷指令 · 快捷指令生成 · agent创建快捷指令 · agent生成快捷指令 · 自动生成快捷指令 · 命令转快捷指令 · 反编译快捷指令 · 快捷指令导入丢失/裁切 · 快捷指令签名（无需开发者账号）· ChatGPT/Gemini/Copilot/Cursor 生成快捷指令 · iOS Shortcuts CLI · WFWorkflowActions。
 
 ## 许可证
 MIT，见 [LICENSE](LICENSE)。

@@ -15,13 +15,13 @@ macOS-native (signing/decoding); the rest is cross-platform. Bilingual output (E
 
 ## Who is this for? (Why this exists)
 
-If you've ever asked **Claude, ChatGPT, or an AI agent to generate an iOS Shortcut** and it **lost half its actions the moment you imported it** — this tool exists because I hit that wall over and over.
+If you've ever asked **Claude, ChatGPT, Codex, Gemini, Copilot, Cursor, or any AI coding agent to generate an iOS Shortcut** and it **lost half its actions the moment you imported it** — this tool exists because I hit that wall over and over.
 
 The cause isn't the AI and it isn't signing. When a `.shortcut` is built programmatically, the modern Shortcuts importer **silently drops whole control-flow blocks** if `UUID` / `GroupingIdentifier` are placed at an action's top level instead of inside `WFWorkflowActionParameters`. On macOS the actions just vanish; on iOS the shortcut imports but runs wrong.
 
 `shortcut-cli` **fixes that root cause automatically** (canonical normalization) and **signs by default**, so an **AI-generated / auto-generated Shortcut actually imports intact**. It also goes the other way — decompile any shortcut to readable JSON — and can pull shortcuts from iCloud share links.
 
-If a few keywords brought you here — *convert command to Shortcut, generate iOS Shortcut programmatically, Claude/AI/agent create Shortcut, decompile .shortcut, Shortcut import loses actions, sign Shortcut without a developer account* — you're in the right place, and hopefully you'll skip the detours I didn't.
+If a few keywords brought you here — *convert command to Shortcut, generate iOS Shortcut programmatically, Claude / Codex / ChatGPT / AI agent create Shortcut, decompile .shortcut, Shortcut import loses actions, sign Shortcut without a developer account* — you're in the right place, and hopefully you'll skip the detours I didn't.
 
 ---
 
@@ -135,7 +135,7 @@ SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
 
 ## Keywords
 
-iOS Shortcuts CLI · convert command to Shortcut · generate `.shortcut` programmatically · Claude / ChatGPT / AI / LLM / agent create iOS Shortcut · auto-generate Shortcuts · decompile Shortcut · sign Shortcut without developer account · fix Shortcut import truncation / missing actions · Apple Shortcuts `WFWorkflowActions` · iCloud shortcut download.
+iOS Shortcuts CLI · convert command to Shortcut · generate `.shortcut` programmatically · Claude / Codex / ChatGPT / Gemini / Copilot / Cursor / AI / LLM / agent create iOS Shortcut · auto-generate Shortcuts · decompile Shortcut · sign Shortcut without developer account · fix Shortcut import truncation / missing actions · Apple Shortcuts `WFWorkflowActions` · iCloud shortcut download.
 
 ## License
 
