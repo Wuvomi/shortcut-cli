@@ -127,6 +127,20 @@ SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
 
 `compile` always moves `UUID` and `GroupingIdentifier` into `WFWorkflowActionParameters`, and `info` flags any file that isn't canonical. Signing itself (`shortcuts sign`) is **lossless** — this tool proves it by unpacking signed files and counting actions on a full round-trip (`decompile → compile → sign → verify`, action count preserved).
 
+## Reliability / round-trip fidelity
+
+`decompile` captures the **entire** workflow (every top-level field + all actions; binary payloads like icons are base64-encoded), so `decompile → compile` is **content-lossless**. Verified on a real shortcut:
+
+- **`original == recompiled`** by deep value comparison — **zero content loss** (all actions and workflow fields preserved).
+- **`compile` is deterministic** — same input → byte-identical output.
+- **Multi-round converges to a stable fixed point** (`decompile → compile → decompile` is stable after the first pass).
+- Actions survive **signing** unchanged (two signatures decode to identical content).
+
+What is **not** byte-identical, by design (metadata, not your logic):
+- The binary-plist serializer normalizes dict **key order**, so re-encoded bytes/size differ slightly from Apple's original — values are unchanged.
+- **Signed files are non-deterministic**: Apple's signature embeds a timestamp, so each `sign` produces different bytes (size ±1). This is fundamental, not a tool defect.
+- On signing, Apple stamps its own `WFWorkflowClientVersion`; nothing else changes.
+
 ## Limitations
 
 - Signing & signed-file decoding are **macOS-only** (see table above).

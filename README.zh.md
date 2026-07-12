@@ -125,6 +125,20 @@ SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
 ## 为什么可靠
 `compile` 始终把 `UUID`/`GroupingIdentifier` 挪进 `WFWorkflowActionParameters`，`info` 会标出任何非 canonical 的文件。签名本身（`shortcuts sign`）是**无损**的——本工具用完整 round-trip（`decompile → compile → sign → verify`，动作数不变）证明了这点。
 
+## 可靠性 / 往返保真度
+
+`decompile` 捕获**整个** workflow（每个顶层字段 + 全部动作；图标等二进制用 base64 编码），所以 `decompile → compile` 是**内容无损**的。在真实快捷指令上实测：
+
+- **`原始 == 重编译`**（深度值比较）—— **内容零丢失**（所有动作与 workflow 字段都保住）。
+- **`compile` 确定性** —— 同输入 → 逐字节相同的输出。
+- **多轮转换收敛到稳定定点**（`decompile → compile → decompile` 过一次后永久稳定）。
+- 动作经**签名**后完全守恒（两次签名解出的内容完全一致）。
+
+**不会逐字节相同的地方**（属于元数据/编码，不是你的逻辑）：
+- 二进制 plist 序列化器会把字典**键顺序**规范化，所以重编码的字节/大小和 Apple 原始的略有不同——**值不变**。
+- **签名文件非确定性**：Apple 签名内嵌时间戳，每次 `sign` 字节都不同（大小 ±1）。这是本质，不是工具缺陷。
+- 签名时 Apple 会盖自己的 `WFWorkflowClientVersion`；除此之外无任何改动。
+
 ## 局限
 - 签名 与 解签名文件**只能 macOS**（见上表）。
 - `decompile` 出的是快捷指令原生 action JSON——无损但底层；暂无更高层 DSL。

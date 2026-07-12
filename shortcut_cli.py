@@ -12,7 +12,19 @@ Key rule: when building shortcut plists, UUID / GroupingIdentifier MUST live ins
 WFWorkflowActionParameters, not at the action's top level — otherwise the modern importer
 silently truncates control-flow blocks. `compile` normalizes this automatically.
 """
-import argparse, plistlib, json, os, sys, struct, subprocess, tempfile, re, urllib.request, uuid, platform, shutil
+import argparse, plistlib, json, os, sys, struct, subprocess, tempfile, re, urllib.request, uuid, platform, shutil, base64
+
+# --- lossless JSON <-> plist: encode bytes (icons/images/data) as base64 so the
+#     command JSON round-trips EXACTLY, including binary payloads. ---
+_BKEY = '__bytes_b64__'
+def _json_default(o):
+    if isinstance(o, bytes):
+        return {_BKEY: base64.b64encode(o).decode('ascii')}
+    raise TypeError(f'not JSON-serializable: {type(o)}')
+def _json_restore(obj):
+    if isinstance(obj, dict) and list(obj.keys()) == [_BKEY]:
+        return base64.b64decode(obj[_BKEY])
+    return obj
 
 MAGIC_AEA = b'AEA1'
 MAGIC_BPLIST = b'bplist00'
@@ -156,8 +168,8 @@ def cmd_decompile(args):
         else:
             print(out)
         return
-    spec = {'WFWorkflowName': wf.get('WFWorkflowName', ''), 'WFWorkflowActions': acts}
-    js = json.dumps(spec, ensure_ascii=False, indent=2)
+    # Lossless: dump the ENTIRE workflow dict (wrapper + actions), bytes as base64.
+    js = json.dumps(wf, ensure_ascii=False, indent=2, default=_json_default)
     if args.o:
         open(args.o, 'w').write(js); print(L(f"wrote command (JSON): {args.o}  ({len(acts)} actions)",
                                              f"已写出命令(JSON): {args.o}  ({len(acts)} 动作)"))
@@ -165,12 +177,19 @@ def cmd_decompile(args):
         print(js)
 
 def cmd_compile(args):
-    spec = json.load(open(args.spec, encoding='utf-8'))
-    acts = spec.get('WFWorkflowActions', spec if isinstance(spec, list) else [])
+    spec = json.load(open(args.spec, encoding='utf-8'), object_hook=_json_restore)
+    # spec may be a bare actions list, or a full workflow dict (lossless decompile output).
+    if isinstance(spec, list):
+        wf = dict(WRAPPER_DEFAULTS); wf['WFWorkflowActions'] = spec
+    else:
+        wf = dict(spec)                       # preserve the spec's own key order (fixed-point round-trip)
+        for k, v in WRAPPER_DEFAULTS.items():
+            wf.setdefault(k, v)               # only append wrapper keys the spec is missing
+        wf.setdefault('WFWorkflowActions', [])
+    acts = wf['WFWorkflowActions']
     normalize(acts)
-    wf = dict(WRAPPER_DEFAULTS)
-    wf['WFWorkflowActions'] = acts
-    wf['WFWorkflowName'] = args.name or spec.get('WFWorkflowName', '') or ''
+    if args.name:
+        wf['WFWorkflowName'] = args.name
     out = args.o or os.path.splitext(args.spec)[0] + '.shortcut'
     plistlib.dump(wf, open(out, 'wb'), fmt=plistlib.FMT_BINARY)
     print(L(f"compiled: {out}  ({len(acts)} actions, canonical-normalized)",
