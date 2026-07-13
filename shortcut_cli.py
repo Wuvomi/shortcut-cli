@@ -30,6 +30,16 @@ MAGIC_AEA = b'AEA1'
 MAGIC_BPLIST = b'bplist00'
 IS_MACOS = platform.system() == 'Darwin'
 
+# Official Shortcuts icon colors (WFWorkflowIconStartColor integer values).
+# Source: sebj/iOS-Shortcuts-Reference. Set with `compile --color <name>`.
+COLORS = {
+    'red': 4282601983, 'dark-orange': 4251333119, 'orange': 4271458815,
+    'yellow': 4274264319, 'green': 4292093695, 'teal': 431817727,
+    'light-blue': 1440408063, 'blue': 463140863, 'dark-blue': 946986751,
+    'violet': 2071128575, 'purple': 3679049983, 'dark-gray': 255,
+    'pink': 3980825855, 'taupe': 3031607807, 'gray': 2846468607,
+}
+
 def _detect_lang():
     v = os.environ.get('SHORTCUT_CLI_LANG', '').lower()
     if v.startswith('zh'): return 'zh'
@@ -190,6 +200,14 @@ def cmd_compile(args):
     normalize(acts)
     if args.name:
         wf['WFWorkflowName'] = args.name
+    if getattr(args, 'color', None) or getattr(args, 'glyph', None) is not None:
+        icon = dict(wf.get('WFWorkflowIcon', {}))
+        if args.color:
+            c = COLORS.get(args.color.lower().replace('_', '-'))
+            icon['WFWorkflowIconStartColor'] = c if c is not None else int(args.color)
+        if args.glyph is not None:
+            icon['WFWorkflowIconGlyphNumber'] = int(args.glyph)
+        wf['WFWorkflowIcon'] = icon
     out = args.o or os.path.splitext(args.spec)[0] + '.shortcut'
     plistlib.dump(wf, open(out, 'wb'), fmt=plistlib.FMT_BINARY)
     print(L(f"compiled: {out}  ({len(acts)} actions, canonical-normalized)",
@@ -245,6 +263,12 @@ def cmd_fetch(args):
     print(L("Tip: iCloud returns an unsigned workflow — decompile/edit/compile it freely.",
             "提示: iCloud 返回的是未签名 workflow，可直接 decompile/改/compile。"))
 
+def cmd_colors(args):
+    print(L("Official Shortcuts icon colors (use `compile --color <name>`):",
+            "官方快捷指令图标颜色（用 `compile --color <名字>`）:"))
+    for name, val in COLORS.items():
+        print(f"  {name:<12} {val}")
+
 def main():
     ap = argparse.ArgumentParser(
         prog='shortcut-cli',
@@ -259,7 +283,10 @@ def main():
     p.add_argument('spec'); p.add_argument('-o'); p.add_argument('--name')
     p.add_argument('--no-sign', dest='sign', action='store_false',
                    help=L('do not sign (signs by default)', '不签名(默认会签名)'))
+    p.add_argument('--color', help=L('icon color name (see `colors`) or raw integer', '图标颜色名(见 colors)或整数'))
+    p.add_argument('--glyph', type=int, help=L('icon glyph number', '图标 glyph 编号'))
     p.set_defaults(fn=cmd_compile, sign=True)
+    p = sub.add_parser('colors', help=L('list official icon colors', '列出官方图标颜色')); p.set_defaults(fn=cmd_colors)
     p = sub.add_parser('sign', help=L('(macOS) sign a .shortcut', '(macOS)签名')); p.add_argument('file'); p.add_argument('-o'); p.add_argument('--mode', default='anyone'); p.set_defaults(fn=cmd_sign)
     p = sub.add_parser('verify', help=L('unpack a file and count actions', '解包数动作验完整')); p.add_argument('file'); p.set_defaults(fn=cmd_verify)
     p = sub.add_parser('fetch', help=L('iCloud share link -> .shortcut', 'iCloud分享链接 -> .shortcut')); p.add_argument('url'); p.add_argument('-o'); p.set_defaults(fn=cmd_fetch)
