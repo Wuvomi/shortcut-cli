@@ -62,41 +62,118 @@ def require_tool(tool, feature):
                    f"x 找不到系统工具 `{tool}`（`{feature}` 需要它）。请在 macOS 上运行。"))
 
 # --------------------------- read (signed / unsigned) ---------------------------
+def _valid_signing_key(key):
+    if not isinstance(key, bytes) or len(key) != 65 or key[0] != 4:
+        raise RuntimeError(L('invalid SigningPublicKey: expected 65-byte uncompressed P-256 key',
+                             '无效的 SigningPublicKey：应为 65 字节未压缩 P-256 公钥'))
+    return key
+
+def _der_item(data, offset=0):
+    """Return (tag, value, next_offset) for one DER item."""
+    if offset + 2 > len(data):
+        raise ValueError('truncated DER')
+    tag, length = data[offset], data[offset + 1]
+    offset += 2
+    if length & 0x80:
+        size = length & 0x7f
+        if not size or offset + size > len(data):
+            raise ValueError('invalid DER length')
+        length = int.from_bytes(data[offset:offset + size], 'big')
+        offset += size
+    end = offset + length
+    if end > len(data):
+        raise ValueError('truncated DER value')
+    return tag, data[offset:end], end
+
+def _certificate_public_key(cert):
+    try:
+        result = subprocess.run(
+            ['openssl', 'x509', '-inform', 'DER', '-pubkey', '-noout'],
+            input=cert, capture_output=True, check=True)
+        pem = b''.join(result.stdout.splitlines()[1:-1])
+        spki = base64.b64decode(pem, validate=True)
+        _, body, _ = _der_item(spki)
+        _, _, offset = _der_item(body)
+        tag, bit_string, _ = _der_item(body, offset)
+        if tag != 3 or not bit_string or bit_string[0] != 0:
+            raise ValueError('invalid SubjectPublicKeyInfo')
+        return _valid_signing_key(bit_string[1:])
+    except subprocess.CalledProcessError as e:
+        detail = e.stderr.decode(errors='replace').strip() or 'no details'
+        raise RuntimeError(L(f'could not extract signing public key: {detail}',
+                             f'无法提取签名公钥：{detail}')) from e
+    except OSError as e:
+        raise RuntimeError(L(f'could not run openssl: {e}', f'无法运行 openssl：{e}')) from e
+    except (ValueError, base64.binascii.Error) as e:
+        raise RuntimeError(L('could not extract a P-256 signing public key from certificate',
+                             '无法从证书提取 P-256 签名公钥')) from e
+
+def _resolve_signing_public_key(auth):
+    if 'SigningPublicKey' in auth:
+        return _valid_signing_key(auth['SigningPublicKey']), 'apple-id/contact'
+    if 'SigningCertificateChain' in auth:
+        chain = auth['SigningCertificateChain']
+        if not isinstance(chain, list) or not chain or not isinstance(chain[0], bytes):
+            raise RuntimeError(L('invalid SigningCertificateChain', '无效的 SigningCertificateChain'))
+        return _certificate_public_key(chain[0]), 'certificate-chain'
+    keys = ', '.join(sorted(str(k) for k in auth))
+    raise RuntimeError(L(f'unsupported AEA authentication schema; keys: {keys}',
+                         f'不支持的 AEA 身份验证结构；键：{keys}'))
+
+def _run_checked(command, description, **kwargs):
+    try:
+        return subprocess.run(command, check=True, capture_output=True, **kwargs)
+    except subprocess.CalledProcessError as e:
+        detail = e.stderr.decode(errors='replace').strip() if isinstance(e.stderr, bytes) else (e.stderr or '').strip()
+        raise RuntimeError(L(f'{description} failed: {detail or "no details"}',
+                             f'{description}失败：{detail or "无详细信息"}')) from e
+    except OSError as e:
+        raise RuntimeError(L(f'{description} unavailable: {e}', f'{description}不可用：{e}')) from e
+
 def _decode_signed(raw, path):
+    if len(raw) < 12:
+        raise RuntimeError(L('invalid or truncated AEA header/auth data', 'AEA 头部或身份验证数据无效或被截断'))
+    profile, authlen = struct.unpack('<II', raw[4:12])
+    if profile != 0:
+        raise RuntimeError(L(f'unsupported AEA profile: {profile}', f'不支持的 AEA 配置：{profile}'))
+    end = 12 + authlen
+    if end > len(raw):
+        raise RuntimeError(L('invalid or truncated AEA header/auth data', 'AEA 头部或身份验证数据无效或被截断'))
+    try:
+        auth = plistlib.loads(raw[12:end])
+    except Exception as e:
+        raise RuntimeError(L('invalid AEA authentication metadata', 'AEA 身份验证元数据无效')) from e
+    if not isinstance(auth, dict):
+        raise RuntimeError(L('invalid AEA authentication metadata', 'AEA 身份验证元数据无效'))
     require_tool('aea', 'decode signed shortcut')
-    authlen = struct.unpack('<I', raw[8:12])[0]
-    cert = plistlib.loads(raw[12:12+authlen])['SigningCertificateChain'][0]
     with tempfile.TemporaryDirectory() as td:
-        der = os.path.join(td, 'c.der'); open(der, 'wb').write(cert)
-        pem = os.path.join(td, 'c.pem')
-        subprocess.run(['openssl', 'x509', '-inform', 'DER', '-in', der, '-pubkey', '-noout'],
-                       stdout=open(pem, 'wb'), check=True)
+        key, signing = _resolve_signing_public_key(auth)
         aar = os.path.join(td, 'p.aar')
-        subprocess.run(['aea', 'decrypt', '-i', path, '-o', aar, '-sign-pub', pem], check=True,
-                       capture_output=True)
+        _run_checked(['aea', 'decrypt', '-i', path, '-o', aar,
+                      '-sign-pub-value', 'hex:' + key.hex()], 'aea decrypt')
         outdir = os.path.join(td, 'x'); os.makedirs(outdir)
-        subprocess.run(['aa', 'extract', '-i', aar, '-d', outdir], check=True, capture_output=True)
+        _run_checked(['aa', 'extract', '-i', aar, '-d', outdir], 'aa extract')
         for root, _, files in os.walk(outdir):
             for f in files:
                 fp = os.path.join(root, f)
                 try:
                     d = plistlib.load(open(fp, 'rb'))
                     if 'WFWorkflowActions' in d:
-                        return d
+                        return d, signing
                 except Exception:
                     pass
     raise RuntimeError(L('no WFWorkflowActions found inside the signed file',
                          '签名文件里没找到 WFWorkflowActions'))
 
 def load_shortcut(path):
-    """Return (workflow_dict, is_signed)."""
+    """Return (workflow_dict, signing_variant), where variant is None if unsigned."""
     raw = open(path, 'rb').read()
     if raw[:4] == MAGIC_AEA:
-        return _decode_signed(raw, path), True
+        return _decode_signed(raw, path)
     if raw[:8] == MAGIC_BPLIST or raw[:6] == b'<?xml ':
-        return plistlib.loads(raw), False
+        return plistlib.loads(raw), None
     try:
-        return plistlib.loads(raw), False
+        return plistlib.loads(raw), None
     except Exception:
         raise RuntimeError(L('unrecognized shortcut file (neither AEA1-signed nor bplist)',
                              '无法识别的快捷指令文件（既非 AEA1 签名也非 bplist）'))
@@ -124,13 +201,16 @@ WRAPPER_DEFAULTS = {
 
 # --------------------------- subcommands ---------------------------
 def cmd_info(args):
-    wf, signed = load_shortcut(args.file)
+    wf, signing = load_shortcut(args.file)
+    signed = signing is not None
     acts = wf.get('WFWorkflowActions', [])
     from collections import Counter
     c = Counter(a['WFWorkflowActionIdentifier'].replace('is.workflow.actions.', '') for a in acts)
     print(L('file      ', '文件      ') + f": {args.file}")
     print(L('name      ', '名称      ') + f": {wf.get('WFWorkflowName', L('(none; import uses file name)', '(无，导入时用文件名)'))}")
     print(L('signed    ', '已签名    ') + f": {L('yes (AEA1)','是 (AEA1)') if signed else L('no (raw bplist)','否 (裸 bplist)')}")
+    if signing:
+        print(L('signing   ', '签名方式  ') + f": {signing}")
     print(L('actions   ', '动作数    ') + f": {len(acts)}")
     print(L('breakdown ', '动作分布  ') + f": {dict(c.most_common())}")
     ctrl = [a for a in acts if a['WFWorkflowActionIdentifier'] in
@@ -294,7 +374,10 @@ def main():
                                         '(macOS)送进快捷指令App导入，未签名自动先签名'))
     p.add_argument('file'); p.set_defaults(fn=cmd_import)
     args = ap.parse_args()
-    args.fn(args)
+    try:
+        args.fn(args)
+    except RuntimeError as e:
+        sys.exit(f"x {e}")
 
 if __name__ == '__main__':
     main()
