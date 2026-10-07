@@ -103,12 +103,99 @@ def load_shortcut(path):
 
 # --------------------------- canonical normalization ---------------------------
 def normalize(actions):
-    """UUID / GroupingIdentifier must be inside the params dict (prevents import truncation)."""
+    """Canonicalize metadata and unambiguous menu/text-comparison shapes."""
+    # The native importer can truncate control flow when IDs live outside params.
     for a in actions:
         p = a.setdefault('WFWorkflowActionParameters', {})
         for k in ('UUID', 'GroupingIdentifier'):
             if k in a:
                 p[k] = a.pop(k)
+    for index, action in enumerate(actions):
+        ident = action.get('WFWorkflowActionIdentifier')
+        p = action['WFWorkflowActionParameters']
+        if type(p.get('WFControlFlowMode')) is not int or p['WFControlFlowMode'] != 0:
+            continue
+        if ident == 'is.workflow.actions.choosefrommenu':
+            # iOS can relabel branches from the item list without moving their bodies.
+            # Keep branch titles/bodies together and align only the matching item list.
+            group, items = p.get('GroupingIdentifier'), p.get('WFMenuItems')
+            if not isinstance(group, str) or not group or not isinstance(items, list):
+                continue
+            markers = [(i, other) for i, other in enumerate(actions)
+                       if other['WFWorkflowActionParameters'].get('GroupingIdentifier') == group]
+            if (len(markers) < 2 or markers[0][0] != index or
+                    any(other.get('WFWorkflowActionIdentifier') != ident or
+                        type(other['WFWorkflowActionParameters'].get('WFControlFlowMode')) is not int
+                        for _, other in markers)):
+                continue
+            modes = [other['WFWorkflowActionParameters']['WFControlFlowMode'] for _, other in markers]
+            # Native modes: 0 starts a group, 1 starts a branch/else, 2 ends it.
+            if modes != [0] + [1] * (len(markers) - 2) + [2]:
+                continue
+            # Reject broken nesting instead of guessing where branch bodies end.
+            stack, seen, complete = [], set(), True
+            for branch in actions[index:markers[-1][0] + 1]:
+                bp = branch['WFWorkflowActionParameters']
+                if 'WFControlFlowMode' not in bp:
+                    continue
+                mode, nested_group = bp['WFControlFlowMode'], bp.get('GroupingIdentifier')
+                key = (branch.get('WFWorkflowActionIdentifier'), nested_group)
+                if (type(mode) is not int or not isinstance(nested_group, str) or
+                        not nested_group):
+                    complete = False
+                    break
+                if mode == 0 and nested_group not in seen:
+                    seen.add(nested_group)
+                    stack.append(key)
+                elif mode in (1, 2) and stack and stack[-1] == key:
+                    if mode == 2:
+                        stack.pop()
+                else:
+                    complete = False
+                    break
+            titles = [other['WFWorkflowActionParameters'].get('WFMenuItemTitle')
+                      for _, other in markers[1:-1]]
+            if (complete and not stack and all(isinstance(t, str) for t in items + titles) and
+                    sorted(items) == sorted(titles) and items != titles):
+                p['WFMenuItems'] = titles
+        elif ident == 'is.workflow.actions.conditional':
+            # Limit this to the captured text-comparison shape. Other parameters
+            # may select numeric/date/Boolean behavior, so leave those untouched.
+            # Text operators: pfgithub/scpl, src/Data/GetTypes.ts.
+            known = {'WFControlFlowMode', 'GroupingIdentifier', 'UUID', 'WFInput',
+                     'WFCondition', 'WFConditionalActionString'}
+            if (set(p) - known or p.get('WFCondition') not in (4, 5, 8, 9, 99, 999)):
+                continue
+            rhs = p.get('WFConditionalActionString')
+            text_rhs = (isinstance(rhs, str) or
+                        isinstance(rhs, dict) and rhs.get('WFSerializationType') == 'WFTextTokenString'
+                        and isinstance(rhs.get('Value'), dict)
+                        and isinstance(rhs['Value'].get('string'), str))
+            inp = p.get('WFInput')
+            if not text_rhs or not isinstance(inp, dict) or inp.get('Type') != 'Variable':
+                continue
+            attachment = inp.get('Variable')
+            if (not isinstance(attachment, dict) or
+                    attachment.get('WFSerializationType') != 'WFTextTokenAttachment'):
+                continue
+            value = attachment.get('Value')
+            if (not isinstance(value, dict) or value.get('Type') != 'Variable' or
+                    not isinstance(value.get('VariableName'), str)):
+                continue
+            properties = value.get('Aggrandizements', [])
+            # Retain explicit types and unknown modifiers; only known property access
+            # can safely precede the added Text conversion.
+            if (not isinstance(properties, list) or
+                    any(not isinstance(prop, dict) or
+                        prop.get('Type') != 'WFPropertyVariableAggrandizement' or
+                        not isinstance(prop.get('PropertyName'), str) or not prop['PropertyName'] or
+                        set(prop) - {'Type', 'PropertyName'}
+                        for prop in properties)):
+                continue
+            # Reproduce the captured input-type repair without changing either
+            # operand or the operator. Fresh iOS UI confirmation remains pending.
+            value['Aggrandizements'] = properties + [
+                {'Type': 'WFCoercionVariableAggrandizement', 'CoercionItemClass': 'WFStringContentItem'}]
     return actions
 
 WRAPPER_DEFAULTS = {

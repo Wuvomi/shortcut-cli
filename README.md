@@ -106,6 +106,38 @@ The command format is the shortcut's `WFWorkflowActions` array wrapped in an obj
 ```
 Easiest authoring flow: build a similar shortcut in the app → `decompile` it → tweak the JSON → `compile`.
 
+### Automatic control-flow normalization
+
+`compile` fixes two generated control-flow shapes automatically, as part of its existing canonical normalization. There is no extra flag or configuration:
+
+```bash
+shortcut-cli compile examples/control_flow_normalization.json --no-sign
+```
+
+- **Menu order:** when a complete menu has the same literal choices in its item list and branch markers, but their orders differ, `WFMenuItems` is aligned to the branch-marker order. The branch titles, action bodies, UUIDs and grouping stay intact. Missing/different choices, dynamic titles, unsupported markers, duplicate/orphan ends, broken nesting and reused group IDs are left untouched; the compiler does not invent or remove branches.
+- **Explicit text comparisons:** for the captured text-comparison shape, an untyped named-variable input receives `WFStringContentItem` coercion under `WFInput.Variable.Value.Aggrandizements`. The source must contain a string or `WFTextTokenString` right operand, a supported text operator and no additional conditional settings. Existing explicit coercions, unknown/competing conditional metadata and unknown/malformed variable modifiers are left untouched. Supported property access stays before the added coercion.
+
+In an observed generated workflow, iOS displayed a comparison as though its argument was missing even though the right-hand token was present in JSON. Selecting another input type and then Text restored the field; the installed capture added this metadata:
+
+```json
+{
+  "Aggrandizements": [
+    {
+      "Type": "WFCoercionVariableAggrandizement",
+      "CoercionItemClass": "WFStringContentItem"
+    }
+  ]
+}
+```
+
+The automatic fix reproduces that explicit typing and leaves both operands and the selected operator intact. For text comparisons, `4` means **is** and `5` means **is not** ([type-map source](https://github.com/pfgithub/scpl/blob/master/src/Data/GetTypes.ts)). The compiler does not infer whether the author's branch should run on equality or mismatch, or repair already relabeled branch bodies from their contents.
+
+These are intentional compilation normalizations, not exact raw-JSON preservation. `decompile` continues to preserve the source without modifying it. Normalization is idempotent, and normalized workflows have a stable compile/decompile/compile round-trip.
+
+The synthetic [`examples/control_flow_normalization.json`](examples/control_flow_normalization.json) demonstrates both corrections without private data, SSH actions or app dependencies. Tests verify the generated fields and preservation boundaries; the normalized file's iOS UI behavior has not been independently tested, so it is not a proven diagnosis of the iOS display bug.
+
+Run the cross-platform regression tests with `python3 -m unittest discover -s tests -v`.
+
 ### `fetch` — iCloud link → Shortcut
 ```bash
 shortcut-cli fetch https://www.icloud.com/shortcuts/<id>
@@ -139,9 +171,9 @@ SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
 
 **→ Full numbers, diagrams, and a re-runnable script: [BENCHMARK.md](BENCHMARK.md).** Verified lossless on real Shortcuts up to 61 actions with nested `if`/`repeat`.
 
-`decompile` captures the **entire** workflow (every top-level field + all actions; binary payloads like icons are base64-encoded), so `decompile → compile` is **content-lossless**. Verified on real shortcuts:
+`decompile` captures the **entire** workflow (every top-level field + all actions; binary payloads like icons are base64-encoded), while `compile` applies the documented canonical normalizations. Already normalized workflows round-trip without further content changes. Verified on real shortcuts:
 
-- **`original == recompiled`** by deep value comparison — **zero content loss** (all actions and workflow fields preserved).
+- **`original == recompiled`** by deep value comparison for already normalized inputs (all actions and workflow fields preserved).
 - **`compile` is deterministic** — same input → byte-identical output.
 - **Multi-round converges to a stable fixed point** (`decompile → compile → decompile` is stable after the first pass).
 - Actions survive **signing** unchanged (two signatures decode to identical content).

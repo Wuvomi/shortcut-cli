@@ -106,6 +106,38 @@ shortcut-cli compile out.json --no-sign               # 不签名
 ```
 最省事的写法：在 App 里搭个类似的 → `decompile` → 改 JSON → `compile`。
 
+### 自动归一化控制流程
+
+`compile` 在现有 canonical 归一化过程中自动修复两类生成结构，不需要额外参数或配置：
+
+```bash
+shortcut-cli compile examples/control_flow_normalization.json --no-sign
+```
+
+- **菜单顺序：**完整菜单的菜单项与分支标题为同一组字面文本、仅顺序不同的情况下，将 `WFMenuItems` 按分支顺序排列。分支标题、动作体、UUID 和分组保持不变。菜单项缺失或不同、动态标题、不支持的标记、重复或孤立的结束标记、嵌套不完整或分组 ID 重用时不作修改；不会添加或删除分支。
+- **显式文本比较：**对已确认的文本比较结构，给未显式指定类型的命名变量添加 `WFStringContentItem` 转换，位置为 `WFInput.Variable.Value.Aggrandizements`。要求右侧是字符串或 `WFTextTokenString`，运算符支持文本，且没有其他条件参数。已有显式类型、未知或冲突的条件设置，以及未知或格式错误的变量修饰项保持不变；支持的属性读取顺序保持在新增转换之前。
+
+在一个实际生成的工作流中，JSON 已有右侧变量，但 iOS 将比较字段显示得像缺少参数。将输入改为其他类型再改回文本后，字段恢复；重新导出的输入增加了以下元数据：
+
+```json
+{
+  "Aggrandizements": [
+    {
+      "Type": "WFCoercionVariableAggrandizement",
+      "CoercionItemClass": "WFStringContentItem"
+    }
+  ]
+}
+```
+
+自动修复会添加该显式类型，同时保留左右两侧的值和运算符。文本比较的 `4` 是 **is**，`5` 是 **is not**（[类型映射源码](https://github.com/pfgithub/scpl/blob/master/src/Data/GetTypes.ts)）。编译器不会猜测作者希望在相等还是不相等时执行分支，也不会根据动作体的含义修复已经被重新标记的分支。
+
+这些是有意的编译归一化操作，不是原始 JSON 的逐字段保留。`decompile` 仍保持原始内容不作修改。归一化具有幂等性；归一化后的编译/反编译/再编译结果稳定。
+
+合成示例 [`examples/control_flow_normalization.json`](examples/control_flow_normalization.json) 演示两项自动修复，不包含私人数据、SSH 动作或其他 App 依赖。测试验证生成字段及内容保留边界；修复后文件的 iOS 界面行为尚未独立测试，不能据此认定 iOS 显示问题的根因。
+
+运行跨平台回归测试：`python3 -m unittest discover -s tests -v`。
+
 ### `fetch` —— iCloud 链接 → 快捷指令
 ```bash
 shortcut-cli fetch https://www.icloud.com/shortcuts/<id>
@@ -137,9 +169,9 @@ SHORTCUT_CLI_LANG=en shortcut-cli info x.shortcut   # English
 
 **→ 完整数据、图示、可复跑脚本见 [BENCHMARK.zh.md](BENCHMARK.zh.md)。** 已在最多 61 动作、含嵌套 `if`/`repeat` 的真实快捷指令上验证无损。
 
-`decompile` 捕获**整个** workflow（每个顶层字段 + 全部动作；图标等二进制用 base64 编码），所以 `decompile → compile` 是**内容无损**的。在真实快捷指令上实测：
+`decompile` 捕获**整个** workflow（每个顶层字段 + 全部动作；图标等二进制用 base64 编码），`compile` 则执行上述 canonical 归一化。已经归一化的输入可以往返转换而不再改变内容。在真实快捷指令上实测：
 
-- **`原始 == 重编译`**（深度值比较）—— **内容零丢失**（所有动作与 workflow 字段都保住）。
+- 对已经归一化的输入，**`原始 == 重编译`**（深度值比较），所有动作与 workflow 字段保持不变。
 - **`compile` 确定性** —— 同输入 → 逐字节相同的输出。
 - **多轮转换收敛到稳定定点**（`decompile → compile → decompile` 过一次后永久稳定）。
 - 动作经**签名**后完全守恒（两次签名解出的内容完全一致）。

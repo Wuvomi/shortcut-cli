@@ -1,0 +1,189 @@
+{
+  "WFWorkflowName": "Control flow normalization example",
+  "WFWorkflowActions": [
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.dictionary",
+      "WFWorkflowActionParameters": {
+        "WFItems": {
+          "Value": {
+            "WFDictionaryFieldValueItems": [
+              {
+                "WFKey": {
+                  "Value": {
+                    "string": "id"
+                  },
+                  "WFSerializationType": "WFTextTokenString"
+                },
+                "WFItemType": 0,
+                "WFValue": {
+                  "Value": {
+                    "string": "sample-id"
+                  },
+                  "WFSerializationType": "WFTextTokenString"
+                }
+              }
+            ]
+          },
+          "WFSerializationType": "WFDictionaryFieldValue"
+        },
+        "UUID": "61822838-71B7-5AFF-9293-7B6785D833E5"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+      "WFWorkflowActionParameters": {
+        "WFInput": {
+          "Value": {
+            "Type": "ActionOutput",
+            "OutputUUID": "61822838-71B7-5AFF-9293-7B6785D833E5",
+            "OutputName": "Dictionary"
+          },
+          "WFSerializationType": "WFTextTokenAttachment"
+        },
+        "WFDictionaryKey": "id",
+        "UUID": "4137FB33-D60A-5486-8245-C5AE451477F3"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+      "WFWorkflowActionParameters": {
+        "WFInput": {
+          "Value": {
+            "Type": "ActionOutput",
+            "OutputUUID": "4137FB33-D60A-5486-8245-C5AE451477F3",
+            "OutputName": "Dictionary Value"
+          },
+          "WFSerializationType": "WFTextTokenAttachment"
+        },
+        "WFVariableName": "Response ID",
+        "UUID": "9FAE53D8-DAA5-5FED-AAA0-BE78A9E5DB71"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+      "WFWorkflowActionParameters": {
+        "WFTextActionText": {
+          "Value": {
+            "string": "sample-id"
+          },
+          "WFSerializationType": "WFTextTokenString"
+        },
+        "UUID": "B973069C-9370-58FF-AA2D-CA083F425E99"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.setvariable",
+      "WFWorkflowActionParameters": {
+        "WFInput": {
+          "Value": {
+            "Type": "ActionOutput",
+            "OutputUUID": "B973069C-9370-58FF-AA2D-CA083F425E99",
+            "OutputName": "Text"
+          },
+          "WFSerializationType": "WFTextTokenAttachment"
+        },
+        "WFVariableName": "Turn ID",
+        "UUID": "817BA8BB-FCD3-53E2-B57A-064B11411B39"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+      "WFWorkflowActionParameters": {
+        "WFControlFlowMode": 0,
+        "GroupingIdentifier": "217960E2-DB60-5E6E-BE20-BEE93B633D67",
+        "WFInput": {
+          "Type": "Variable",
+          "Variable": {
+            "Value": {
+              "Type": "Variable",
+              "VariableName": "Response ID"
+            },
+            "WFSerializationType": "WFTextTokenAttachment"
+          }
+        },
+        "WFCondition": 5,
+        "WFConditionalActionString": {
+          "Value": {
+            "string": "￼",
+            "attachmentsByRange": {
+              "{0, 1}": {
+                "Type": "Variable",
+                "VariableName": "Turn ID"
+              }
+            }
+          },
+          "WFSerializationType": "WFTextTokenString"
+        },
+        "UUID": "D2DAA85F-500B-549C-BD3E-E5001D969700"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
+      "WFWorkflowActionParameters": {
+        "Text": "The IDs do not match.",
+        "UUID": "D0AA324B-F41B-5880-B34A-5B5DAEE665EC"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+      "WFWorkflowActionParameters": {
+        "WFControlFlowMode": 2,
+        "GroupingIdentifier": "217960E2-DB60-5E6E-BE20-BEE93B633D67",
+        "UUID": "59702F4E-5434-5E23-887B-B230101A754C"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
+      "WFWorkflowActionParameters": {
+        "WFControlFlowMode": 0,
+        "GroupingIdentifier": "672DB1D6-6905-5CB5-B8E8-AEDB71AC6D83",
+        "WFMenuItems": [
+          "Retry previous turn",
+          "New conversation"
+        ],
+        "WFMenuPrompt": "Choose an operation",
+        "UUID": "5317CC27-A37B-5AAF-873C-9534D43341C0"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
+      "WFWorkflowActionParameters": {
+        "WFControlFlowMode": 1,
+        "GroupingIdentifier": "672DB1D6-6905-5CB5-B8E8-AEDB71AC6D83",
+        "WFMenuItemTitle": "New conversation",
+        "UUID": "8854F548-8994-5B74-87B3-E1D40A17135E"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
+      "WFWorkflowActionParameters": {
+        "Text": "New-conversation body",
+        "UUID": "6BB78C02-5B1B-57EE-A307-96767DF8B3D8"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
+      "WFWorkflowActionParameters": {
+        "WFControlFlowMode": 1,
+        "GroupingIdentifier": "672DB1D6-6905-5CB5-B8E8-AEDB71AC6D83",
+        "WFMenuItemTitle": "Retry previous turn",
+        "UUID": "FFAC9618-2BC4-511E-AD1A-18BEC6E6A749"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
+      "WFWorkflowActionParameters": {
+        "Text": "Retry body",
+        "UUID": "32F9A95F-62AB-5741-8CD8-1E6DEC5DE643"
+      }
+    },
+    {
+      "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
+      "WFWorkflowActionParameters": {
+        "WFControlFlowMode": 2,
+        "GroupingIdentifier": "672DB1D6-6905-5CB5-B8E8-AEDB71AC6D83",
+        "UUID": "896F529B-E453-5CCA-B7AD-5E734E85529F"
+      }
+    }
+  ]
+}
